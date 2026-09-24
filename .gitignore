@@ -1,0 +1,30 @@
+# ROS 2 Build & Install Folders
+build/
+install/
+log/
+
+# Python Cache & Environment
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.venv/
+venv/
+
+# C++ / CMake Artifacts
+*.so
+*.a
+*.o
+CMakeCache.txt
+CMakeFiles/
+
+# IDE & OS Configuration
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Sensitive Files / Local Configs
+*.env
+secrets/
