@@ -2,7 +2,7 @@ import os
 
 from ament_index_python.packages import get_package_share_path
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
+from launch.actions import IncludeLaunchDescription, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command
 from launch_ros.actions import Node
@@ -11,7 +11,7 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 def generate_launch_description():
     description_share = get_package_share_path('robin_description')
-    bringup_share = get_package_share_path('robin_bringup')
+    bringup_share    = get_package_share_path('robin_bringup')
 
     urdf_path = os.path.join(description_share, 'urdf', 'my_robot.urdf.xacro')
     gazebo_config_path = os.path.join(
@@ -31,7 +31,12 @@ def generate_launch_description():
     robot_state_publisher_node = Node(
         package='robot_state_publisher',
         executable='robot_state_publisher',
-        parameters=[{'robot_description': robot_description}],
+        parameters=[{
+            'robot_description': robot_description,
+            'use_sim_time': True,
+        }],
+        remappings=[('/joint_states', '/joint_states')],  # eksplisit
+        output='screen',
     )
 
     gazebo_node = IncludeLaunchDescription(
@@ -42,13 +47,22 @@ def generate_launch_description():
     spawn_robot_node = Node(
         package='ros_gz_sim',
         executable='create',
-        arguments=['-topic', 'robot_description'],
+        arguments=[
+            '-name', 'robin',
+            '-topic', 'robot_description',
+            '-x', '0', '-y', '0', '-z', '0.1',
+        ],
+        output='screen',
     )
 
     bridge_node = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
-        parameters=[{'config_file': gazebo_config_path}],
+        parameters=[{
+            'config_file': gazebo_config_path,
+            'use_sim_time': True,
+        }],
+        output='screen',
     )
 
     rviz_node = Node(
@@ -56,12 +70,22 @@ def generate_launch_description():
         executable='rviz2',
         output='screen',
         arguments=['-d', rviz_config_path],
+        parameters=[{'use_sim_time': True}],
+    )
+
+    delayed_spawn = TimerAction(
+        period=2.0,
+        actions=[spawn_robot_node],
+    )
+    delayed_bridge = TimerAction(
+        period=3.0,
+        actions=[bridge_node],
     )
 
     return LaunchDescription([
         robot_state_publisher_node,
         gazebo_node,
-        spawn_robot_node,
-        bridge_node,
+        delayed_spawn,
+        delayed_bridge,
         rviz_node,
     ])
