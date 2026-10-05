@@ -16,7 +16,7 @@ class InverseKinematicNode(Node):
 
         self.create_subscription(
             Twist,
-            '/cmd_vel',
+            '/input_ik',
             self.velocity_callback,
             10
         )
