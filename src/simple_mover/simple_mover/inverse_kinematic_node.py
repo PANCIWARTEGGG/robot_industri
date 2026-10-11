@@ -43,9 +43,7 @@ class InverseKinematicNode(Node):
         self.left_publisher.publish(msg_left)
         self.right_publisher.publish(msg_right)
 
-        self.get_logger().info(
-            f'v={v_b:.2f} ω={omega:.2f} → L={phi_dot_l:.2f}, R={phi_dot_r:.2f}'
-        )
+        # self.get_logger().info(f'v={v_b:.2f} ω={omega:.2f} → L={phi_dot_l:.2f}, R={phi_dot_r:.2f}')
 
 
 def main(args=None):

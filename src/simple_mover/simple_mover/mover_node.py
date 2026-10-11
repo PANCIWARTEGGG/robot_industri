@@ -177,7 +177,6 @@ class GoToPointNode(Node):
         self.ANGLE_THRESHOLD = self.get_parameter('ANGLE_THRESHOLD').value
         self.ROTATE_FIRST_ANGLE = self.get_parameter('ROTATE_FIRST_ANGLE').value
 
-        # === State ===
         self.x = 0.0
         self.y = 0.0
         self.theta = 0.0
@@ -187,14 +186,11 @@ class GoToPointNode(Node):
         self.target_y = None
         self.goal_reached = False
 
-        # === Subscribers ===
         self.create_subscription(Odometry, '/odom_custom', self.odom_callback, 10)
         self.create_subscription(Point, '/goal_point', self.goal_callback, 10)
 
-        # === Publisher ===
         self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
 
-        # === Timer kontrol 20 Hz ===
         self.create_timer(0.05, self.control_loop)
 
         self.get_logger().info(
@@ -212,7 +208,6 @@ class GoToPointNode(Node):
         self.x = msg.pose.pose.position.x
         self.y = msg.pose.pose.position.y
 
-        # Quaternion → yaw (theta)
         q = msg.pose.pose.orientation
         self.theta = math.atan2(
             2.0 * (q.w * q.z + q.x * q.y),
@@ -226,29 +221,24 @@ class GoToPointNode(Node):
         self.target_y = msg.y
         self.goal_reached = False
         self.get_logger().info(
-            f'🎯 Target baru: ({self.target_x:.2f}, {self.target_y:.2f})'
+            f'Target baru: ({self.target_x:.2f}, {self.target_y:.2f})'
         )
 
     # ============ CONTROL LOOP ============
     def control_loop(self):
-        # Belum dapat odom / goal?
         if not self.odom_received or self.target_x is None:
             return
 
-        # Sudah sampai?
         if self.goal_reached:
             return
 
-        # Hitung vektor ke target
         dx = self.target_x - self.x
         dy = self.target_y - self.y
         distance = math.sqrt(dx * dx + dy * dy)
 
-        # Hitung error heading
         angle_to_target = math.atan2(dy, dx)
         angle_error = angle_to_target - self.theta
 
-        # Normalisasi ke [-π, π]
         angle_error = math.atan2(math.sin(angle_error), math.cos(angle_error))
 
         # === Check apakah sudah sampai ===
@@ -256,37 +246,30 @@ class GoToPointNode(Node):
             self.stop_robot()
             self.goal_reached = True
             self.get_logger().info(
-                f'✅ Goal tercapai! Posisi akhir: '
+                f'Goal tercapai! Posisi akhir: '
                 f'({self.x:.3f}, {self.y:.3f}) | '
                 f'Error: {distance*100:.2f} cm'
             )
             return
 
-        # === Hitung kecepatan ===
         v = self.K_v * distance
         w = self.K_w * angle_error
 
-        # Strategi "rotate first" — kalau error heading besar, putar dulu
         if abs(angle_error) > self.ROTATE_FIRST_ANGLE:
             v = 0.0
         else:
-            # Kalau heading hampir benar, boleh maju
-            # Kurangi kecepatan kalau heading masih agak miring
             v = self.K_v * distance * math.cos(angle_error)
 
-        # Clamp
         v = max(min(v, self.V_MAX), -self.V_MAX)
         w = max(min(w, self.W_MAX), -self.W_MAX)
 
-        # Publish
         cmd = Twist()
         cmd.linear.x = v
         cmd.angular.z = w
         self.cmd_pub.publish(cmd)
 
-        # Log periodik (throttled)
         self.get_logger().info(
-            f'→ target ({self.target_x:.2f}, {self.target_y:.2f}) | '
+            f'Target ({self.target_x:.2f}, {self.target_y:.2f}) | '
             f'pos ({self.x:.2f}, {self.y:.2f}) | '
             f'd={distance:.3f} m | θ_err={math.degrees(angle_error):.1f}° | '
             f'v={v:.2f} ω={w:.2f}',

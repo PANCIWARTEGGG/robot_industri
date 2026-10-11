@@ -12,7 +12,6 @@ class ForwardKinematicNode(Node):
     def __init__(self):
         super().__init__('forward_kinematic_node')
 
-        # Parameter fisik robot
         self.declare_parameter('wheel_radius', 0.1)
         self.declare_parameter('wheel_separation', 0.45)
         self.declare_parameter('left_joint_name', 'base_left_wheel_joint')
@@ -27,71 +26,55 @@ class ForwardKinematicNode(Node):
         self.odom_frame = self.get_parameter('odom_frame').value
         self.base_frame = self.get_parameter('base_frame').value
 
-        # State robot
         self.x = 0.0
         self.y = 0.0
         self.theta = 0.0
 
-        # Posisi roda sebelumnya
         self.prev_phi_l = None
         self.prev_phi_r = None
 
-        # Subscriber
         self.create_subscription(
             JointState, '/joint_states', self.joint_state_callback, 10
         )
 
-        # Publisher
         self.odom_pub = self.create_publisher(Odometry, '/odom_custom', 10)
         self.tf_broadcaster = TransformBroadcaster(self)
 
-        self.get_logger().info(
-            f'FK Node aktif | r={self.r} m, s={self.s} m'
-        )
+        self.get_logger().info(f'FK Node aktif | r={self.r} m, s={self.s} m')
 
     def joint_state_callback(self, msg: JointState):
-        # 1. Cari index joint di message
         try:
             idx_l = msg.name.index(self.left_joint)
             idx_r = msg.name.index(self.right_joint)
         except ValueError:
-            # Kalau joint tidak ada, skip
             return
 
         phi_l = msg.position[idx_l]
         phi_r = msg.position[idx_r]
 
-        # 2. Pertama kali? Simpan & keluar
         if self.prev_phi_l is None:
             self.prev_phi_l = phi_l
             self.prev_phi_r = phi_r
             return
 
-        # 3. Hitung perubahan sudut
         d_phi_l = phi_l - self.prev_phi_l
         d_phi_r = phi_r - self.prev_phi_r
 
-        # 4. Jarak tempuh roda
         d_l = self.r * d_phi_l
         d_r = self.r * d_phi_r
 
-        # 5. Gerakan robot
         d = (d_l + d_r) / 2.0
         d_theta = (d_r - d_l) / self.s
 
-        # 6. Update pose (midpoint integration)
         self.x += d * math.cos(self.theta + d_theta / 2.0)
         self.y += d * math.sin(self.theta + d_theta / 2.0)
         self.theta += d_theta
 
-        # Normalisasi theta ke [-π, π]
         self.theta = math.atan2(math.sin(self.theta), math.cos(self.theta))
 
-        # 7. Simpan untuk iterasi berikutnya
         self.prev_phi_l = phi_l
         self.prev_phi_r = phi_r
 
-        # 8. Publish
         self.publish_odom(msg.header.stamp)
         self.publish_tf(msg.header.stamp)
 
@@ -105,11 +88,9 @@ class ForwardKinematicNode(Node):
         odom.pose.pose.position.y = self.y
         odom.pose.pose.position.z = 0.0
 
-        # Konversi theta ke quaternion
         q = self.theta_to_quaternion(self.theta)
         odom.pose.pose.orientation = q
 
-        # Covariance (opsional, tapi bagus untuk Nav2)
         odom.pose.covariance[0] = 0.01   # x
         odom.pose.covariance[7] = 0.01   # y
         odom.pose.covariance[35] = 0.01  # theta
