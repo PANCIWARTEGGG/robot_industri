@@ -3,6 +3,10 @@ build/
 install/
 log/
 
+# Abaikan semua folder di dalam src kecuali robin_maze_solver
+src/*
+!src/robin_maze_solver/
+
 # Python Cache & Environment
 __pycache__/
 *.pyc
